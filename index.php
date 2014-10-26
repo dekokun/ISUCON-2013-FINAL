@@ -166,6 +166,16 @@ function filter_require_user($route)
 
 dispatch_get('/', function()
 {
+/*require 'predis-1.0/autoload.php';
+Predis\Autoloader::register();
+$redis = new Predis\Client('tcp://10.0.0.119:6379');
+
+$redis->set("dog","baw-baw");
+
+//get(key)
+$res = $redis->get("hoge");
+echo $res;
+*/
     return render('index.html');
 });
 
