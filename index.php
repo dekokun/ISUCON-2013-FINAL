@@ -348,6 +348,7 @@ dispatch_post('/entry', function()
 dispatch_post('/entry/:id', function()
 {
     $db   = option('db_conn');
+    $redis   = option('redis_conn');
     $user = get('user');
 
     $id  = params('id');
@@ -367,6 +368,11 @@ dispatch_post('/entry/:id', function()
     $stmt = $db->prepare('DELETE FROM entries WHERE id = :id');
     $stmt->bindValue(':id', $id);
     $stmt->execute();
+    
+    $publish_level = $redis->hget('entries_' . $id, 'publish_level');
+    $redis->del('entries_' . $id);
+    $redis->srem('entries_publish_range_' . $user['id'], $id);
+    $redis->srem('entries_publish_range_publish_level_' . $publish_level, $id);
 
     return json(array(
         'ok' => true,
@@ -501,6 +507,7 @@ dispatch_post('/unfollow', function()
         $stmt->bindValue(':user', $user['id']);
         $stmt->bindValue(':target', $target);
         $stmt->execute();
+        // redis
     }
 
     get_following();
