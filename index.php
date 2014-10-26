@@ -115,6 +115,7 @@ function configure()
     }
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     option('db_conn', $db);
+    option('redis_conn', $db);
 }
 
 function before($route)
