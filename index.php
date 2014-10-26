@@ -1,5 +1,7 @@
 <?php
 require_once 'lib/limonade.php';
+require 'predis-1.0/autoload.php';
+Predis\Autoloader::register();
 
 function convert($orig, $ext, $w, $h) {
     $filename = tempnam('/tmp', 'ISUCON');
@@ -115,7 +117,10 @@ function configure()
     }
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     option('db_conn', $db);
-    option('redis_conn', $db);
+    $redis = new Predis\Client('tcp://10.0.0.119:6379');
+
+
+    option('redis_conn', $redis);
 }
 
 function before($route)
@@ -167,16 +172,12 @@ function filter_require_user($route)
 
 dispatch_get('/', function()
 {
-/*require 'predis-1.0/autoload.php';
-Predis\Autoloader::register();
-$redis = new Predis\Client('tcp://10.0.0.119:6379');
+    $redis = option('redis_conn');
+    $redis->set("dog","baw-baw");
 
-$redis->set("dog","baw-baw");
-
-//get(key)
-$res = $redis->get("hoge");
-echo $res;
-*/
+    //get(key)
+    $res = $redis->get("hoge");
+    echo $res;
     return render('index.html');
 });
 
