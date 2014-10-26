@@ -117,6 +117,8 @@ function configure()
     }
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     option('db_conn', $db);
+
+    // redisの設定
     $redis = new Predis\Client('tcp://10.0.0.119:6379');
 
 
@@ -172,18 +174,13 @@ function filter_require_user($route)
 
 dispatch_get('/', function()
 {
-    $redis = option('redis_conn');
-    $redis->set("dog","baw-baw");
-
-    //get(key)
-    $res = $redis->get("hoge");
-    echo $res;
     return render('index.html');
 });
 
 dispatch_post('/signup', function()
 {
     $db = option('db_conn');
+    $redis = option('redis_conn');
 
     $name = $_POST['name'];
     if (!preg_match('/^[0-9a-zA-Z_]{2,16}$/', $name)) {
@@ -196,6 +193,19 @@ dispatch_post('/signup', function()
     $stmt->bindValue(':api_key', $api_key);
     $stmt->bindValue(':icon', 'default');
     $stmt->execute();
+
+    // redisのターン
+    $new_user_id = $redis->incr('increment_user_id');
+    $redis->hmset('users_' . $new_user_id,
+	array(
+		'name' => $name,
+		'api_key' => $api_key,
+		'icon' => 'default')
+	);
+
+    $redis->set('api_key_user_id_' . $api_key, $new_user_id);
+
+
 
     $id = $db->lastInsertId();
 
@@ -279,6 +289,7 @@ dispatch_post('/icon', function()
 dispatch_post('/entry', function()
 {
     $db   = option('db_conn');
+    $redis   = option('redis_conn');
     $user = get('user');
 
     if (!is_uploaded_file($_FILES['image']['tmp_name'])) {
@@ -303,6 +314,19 @@ dispatch_post('/entry', function()
     $stmt->execute();
 
     $id = $db->lastInsertId();
+
+    // redisのターン
+    $new_entry_id = $redis->incr('increment_entry_id');
+    $redis->hmset('entries_' . $new_entry_id,
+	array(
+		'user' => $user['id'],
+		'image', $image_id,
+		'publish_level', $publish_level
+	)
+    );
+    $redis->set('image_entry_id_' . $image_id, $new_entry_id);
+    $redis->sadd('entries_publish_range_' . $user['id'], $new_entry_id);
+    $redis->sadd('entries_publish_range_publish_level_' . $publish_level, $new_entry_id);
 
     $stmt = $db->prepare('SELECT * FROM entries WHERE id = :id');
     $stmt->bindValue(':id', $id);
@@ -413,7 +437,7 @@ function get_following() {
     $db   = option('db_conn');
     $user = get('user');
 
-    $stmt = $db->prepare('SELECT users.* FROM follow_map JOIN users ON (follow_map.target = users.id) WHERE follow_map.user = :user ORDER BY follow_map.created_at DESC');
+    $stmt = $db->prepare('SELECT users.* FROM follow_map JOIN users ON (follow_map.target = users.id) WHERE follow_map.user = :user ');
     $stmt->bindValue(':user', $user['id']);
     $stmt->execute();
     $followings = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -441,6 +465,7 @@ dispatch_get('/follow', function()
 dispatch_post('/follow', function()
 {
     $db   = option('db_conn');
+    $redis   = option('redis_conn');
     $user = get('user');
 
     $params = get_http_parameters('POST');
@@ -453,6 +478,9 @@ dispatch_post('/follow', function()
         $stmt->bindValue(':user', $user['id']);
         $stmt->bindValue(':target', $target);
         $stmt->execute();
+        // redisのターン
+	$redis->set('follow_map_' . $user['id'] . "_" . $target, true);
+        $redis->sadd('follow_map_targets_' . $user['id'], $target);
     }
 
     get_following();
