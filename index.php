@@ -495,6 +495,7 @@ dispatch_post('/follow', function()
 dispatch_post('/unfollow', function()
 {
     $db   = option('db_conn');
+    $redis   = option('redis_conn');
     $user = get('user');
 
     $params = get_http_parameters('POST');
@@ -508,6 +509,8 @@ dispatch_post('/unfollow', function()
         $stmt->bindValue(':target', $target);
         $stmt->execute();
         // redis
+        $redis->del('follow_map_' . $user['id'] . "_" . $target);
+        
     }
 
     get_following();
